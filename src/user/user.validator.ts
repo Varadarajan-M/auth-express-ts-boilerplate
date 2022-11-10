@@ -26,8 +26,9 @@ class UserValidator {
 	}
 
 	static validateResetToken(req: Request, res: Response, next: NextFunction) {
-		const resetToken = req.headers['resettoken'] || null;
-		Utils.exists(resetToken)
+		const { authorization } = req.headers;
+		const token = authorization?.split(' ')[1];
+		Utils.exists(token)
 			? next()
 			: res.status(400).json({ ok: false, error: 'Invalid token' });
 	}

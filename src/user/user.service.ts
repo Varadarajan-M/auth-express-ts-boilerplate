@@ -4,14 +4,19 @@ import Utils from '../util';
 import User from '../models/user.model';
 import { IUser } from '../types/User';
 import { sendEmail } from '../email/email.service';
+import { APIErrors } from '../errors';
+import {
+	getResetPassswordMailDetails,
+	getVerificationMailDetails,
+} from '../common';
 
 class UserService {
 	static async register({ email, password, username }: IUser) {
 		try {
 			const user = await User.findOne({ email });
-			if (Utils.exists(user)) {
-				return { ok: false, error: 'User Exists' };
-			}
+
+			if (Utils.exists(user)) throw new Error(APIErrors.USER_EXISTS_ERROR);
+
 			const hash = await bcrypt.hash(password, 5);
 
 			const newUser = await User.create({
@@ -21,27 +26,24 @@ class UserService {
 				isVerified: false,
 			});
 
-			jwt.sign(
-				{ id: newUser._id },
-				process.env.SECRET!,
-				{ expiresIn: '5m' },
-				(err, token) => {
-					if (err) {
-						throw err;
-					} else {
-						sendEmail({
-							from: process.env.USERNAME!,
-							to: email,
-							subject: 'Verification Email',
-							html: `<div>
-                        <h3>
-                        Hello ${username}!</h3>
-                        <p>Please click <a href="http://localhost:3000/api/user/verify/?u=${token}">Here</a> to verify your email!!</p></div>`,
-						});
-					}
-				},
+			const token = jwt.sign({ id: newUser._id }, process.env.SECRET!, {
+				expiresIn: '5m',
+			});
+
+			const apiUrl = Utils.isProduction()
+				? process.env.API_URL_PROD
+				: process.env.API_URL_DEV;
+
+			const verificationEmailDetails = getVerificationMailDetails(
+				process.env.USERNAME!,
+				username,
+				email,
+				apiUrl,
+				token,
 			);
 			console.log('User registered successfully, New user :', username);
+
+			sendEmail(verificationEmailDetails);
 			return {
 				ok: true,
 				message:
@@ -56,107 +58,125 @@ class UserService {
 	static async verify(token: string) {
 		try {
 			const user = jwt.verify(token, process.env.SECRET!) as any;
-			const res = await User.findOneAndUpdate(
+
+			await User.findOneAndUpdate(
 				{ _id: user.id },
 				{ $set: { isVerified: true } },
 			);
+
 			console.log('User verification successful ');
+
 			return { ok: true, message: 'User verification successful ' };
 		} catch (e: any) {
 			console.log(e.message);
-			return { ok: false, error: 'cannot verify user' };
+			return { ok: false, error: APIErrors.CANNOT_VERIFY_USER };
 		}
 	}
 
 	static async login(credentials: Pick<IUser, 'email' | 'password'>) {
 		try {
 			const user = await User.findOne({ email: credentials.email });
-			if (user?.isVerified) {
-				const isPasswordMatch = await bcrypt.compare(
-					credentials.password,
-					user.password,
-				);
-				if (isPasswordMatch) {
-					const token = jwt.sign(
-						{ email: user.email, id: user._id },
-						process.env.SECRET!,
-						{ expiresIn: '60m' },
-					);
-					console.log('User logged in :', user.username, `<${user.email}>`);
 
-					return {
-						ok: true,
-						data: {
-							email: user.email,
-							username: user.username,
-							token,
-						},
-					};
-				}
-			}
-			throw new Error('Cannot login');
-		} catch (error: any) {
-			console.log(error);
-			return { ok: false, error: error.message };
+			if (!Utils.exists(user) || !user?.isVerified)
+				throw new Error(APIErrors.CANNOT_LOGIN_ERROR);
+
+			const isPasswordMatch = await bcrypt.compare(
+				credentials.password,
+				user.password,
+			);
+
+			if (!isPasswordMatch)
+				throw new Error(APIErrors.INVALID_CREDENTIALS_ERROR);
+
+			const token = jwt.sign(
+				{ email: user.email, id: user._id },
+				process.env.SECRET!,
+				{ expiresIn: '60m' },
+			);
+
+			console.log('User logged in :', user.username, `<${user.email}>`);
+
+			return {
+				ok: true,
+				data: {
+					email: user.email,
+					username: user.username,
+					token,
+				},
+			};
+		} catch (e: any) {
+			console.log(e.message);
+			return { ok: false, error: e.message };
 		}
 	}
 
 	static async updatePassword(resetToken: string, password: string) {
 		try {
 			const hash = await bcrypt.hash(password, 5);
+
 			await User.updateOne(
 				{ resetToken },
 				{ $set: { password: hash, resetToken: '' } },
 			);
+
 			return { ok: true, message: 'Updated password successfully' };
-		} catch (error: any) {
-			console.log(error.message);
-			return { ok: false, error: error.message };
+		} catch (e: any) {
+			console.log(e.message);
+			return { ok: false, error: e.message };
 		}
 	}
 
 	static async resetPassword(email: string) {
 		try {
 			const user = await User.findOne({ email });
-			if (Utils.exists(user)) {
-				const token = jwt.sign({ id: user._id }, process.env.SECRET, {
-					expiresIn: '5m',
-				});
-				user.resetToken = token;
-				await user.save();
-				sendEmail({
-					from: process.env.USERNAME!,
-					to: email,
-					subject: `Account : ${user.username} | Reset password`,
-					html: `<div>
-                        <h3>
-                        Hello ${user.username}!!</h3>
-                        <p>Please click <a href="${process.env.CLIENT_PASSWORD_UPDATE__URL}?u=${token}">Here</a> to redirect to password reset page!!</p></div>`,
-				});
-				return {
-					ok: true,
-					message: 'Please check your mail for further instructions.',
-				};
-			}
-			throw new Error("User doesn't exist");
-		} catch (error: any) {
-			console.log(error.message);
-			return { ok: false, error: error.message };
+
+			if (!Utils.exists(user))
+				throw new Error(APIErrors.USER_DOES_NOT_EXIST_ERROR);
+
+			const token = jwt.sign({ id: user._id }, process.env.SECRET!, {
+				expiresIn: '5m',
+			});
+
+			await User.updateOne({ email }, { $set: { resetToken: token } });
+
+			const passwordUpdateUrl = Utils.isProduction()
+				? process.env.PASSWORD_UPDATE_URL_CLIENT_PROD
+				: process.env.PASSWORD_UPDATE_URL_CLIENT_DEV;
+
+			const resetPasswordMailDetails = getResetPassswordMailDetails(
+				process.env.USERNAME!,
+				user.username,
+				email,
+				passwordUpdateUrl,
+				token,
+			);
+			sendEmail(resetPasswordMailDetails);
+
+			return {
+				ok: true,
+				message: 'Please check your mail for further instructions.',
+			};
+		} catch (e: any) {
+			console.log(e.message);
+			return { ok: false, error: e.message };
 		}
 	}
 
 	static async checkAndUpdatePassword(resetToken: string, password: string) {
 		try {
 			jwt.verify(resetToken, process.env.SECRET);
+
 			const user = await User.findOne({ resetToken });
-			if (Utils.exists(user)) {
-				const response = await this.updatePassword(resetToken, password);
-				return response;
-			}
-			throw new Error(`Cannot update password`);
-		} catch (error: any) {
-			console.log(error.message);
-			return { ok: false, error: error.message };
+
+			if (!Utils.exists(user))
+				throw new Error(APIErrors.CANNOT_UPDATE_PASSWORD_ERROR);
+
+			const response = await this.updatePassword(resetToken, password);
+
+			return response;
+		} catch (e: any) {
+			console.log(e.message);
+			return { ok: false, error: e.message };
 		}
 	}
 }
