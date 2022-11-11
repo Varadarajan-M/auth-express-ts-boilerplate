@@ -17,7 +17,7 @@ class UserService {
 
 			if (Utils.exists(user)) throw new Error(APIErrors.USER_EXISTS_ERROR);
 
-			const hash = await bcrypt.hash(password, process.env.SALT_ROUNDS);
+			const hash = await bcrypt.hash(password, +process.env.SALT_ROUNDS ?? 5);
 
 			const newUser = await User.create({
 				email,
@@ -112,7 +112,7 @@ class UserService {
 
 	static async updatePassword(resetToken: string, password: string) {
 		try {
-			const hash = await bcrypt.hash(password, process.env.SALT_ROUNDS);
+			const hash = await bcrypt.hash(password, +process.env.SALT_ROUNDS ?? 5);
 
 			await User.updateOne(
 				{ resetToken },
