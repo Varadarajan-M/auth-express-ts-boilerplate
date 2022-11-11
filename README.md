@@ -1,97 +1,80 @@
 ## Auth Service API
 
-
 `baseUrl` : https://auth-express-ts.up.railway.app/api
 
 ### Available endpoints
 
-- `POST` `/users/register` 
-	
-	**Sample request** : 
+- `POST` `/user/register`
 
-	Headers : 
+  **Sample request** :
 
-	    {
-		    'content-type' : application/json
-	    }
+  Headers :
 
-	Body : 
-		
+  {
+  'content-type' : application/json
+  }
 
-		{
-		    "email": "Johndoe@company.com",
-		    "password":"password",
-		    "username":"John doe"
-		}
-	
+  Body :
 
-		
+  {
+  "email": "Johndoe@company.com",
+  "password":"password",
+  "username":"John doe"
+  }
+- `POST` `/user/login`
 
+  **Sample request** :
 
-- `POST` `/users/login` 
+  Headers :
 
-	
-	**Sample request** : 
-	
-	Headers : 
+  {
+  'content-type' : application/json
+  }
 
-	    {
-		    'content-type' : application/json
-	    }
+  Body :
 
-	Body : 
-		
+  {
+  "email": "Johndoe@company.com",
+  "password":"password"
+  }
+- `POST` `/user/reset-password`
 
-		{
-		    "email": "Johndoe@company.com",
-		    "password":"password"
-		}
-	
-- `POST` `/users/reset-password` 
-	
-	**Sample request** : 
+  **Sample request** :
 
-	Headers : 
+  Headers :
 
-	    {
-		    'content-type' : application/json
-	    }
+  {
+  'content-type' : application/json
+  }
 
-	Body : 
-		
+  Body :
 
-		{
-		    "email": "Johndoe@company.com"
-		}
-		
-- `POST` `/users/update-password` 
-	
-	**Sample request** : 
+  {
+  "email": "Johndoe@company.com"
+  }
+- `POST` `/user/update-password`
 
-	Headers : 		
+  **Sample request** :
 
-	    {
-		    "content-type" : "application/json",
-		    "Authorization" : "Bearer <token here>"
-	    }
+  Headers :
 
-	Body : 
-		
+  {
+  "content-type" : "application/json",
+  "Authorization" : "Bearer `<token here>`"
+  }
 
-		{
-		    "password": "password"
-		}
+  Body :
 
-		
-- `GET` `/private/content` 
-	
-	**Sample request** : 
+  {
+  "password": "password"
+  }
+- `GET` `/private/content`
 
-	Headers : 
-		
-	
-	     {
-    		    "content-type" : "application/json",
-    		    "Authorization" : "Bearer <token here>"
-    	 }
+  **Sample request** :
 
+  Headers :
+
+  {
+  "content-type" : "application/json",
+  "Authorization" : "Bearer `<token here>`"
+  }

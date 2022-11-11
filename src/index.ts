@@ -29,6 +29,10 @@ const main = async () => {
 		res.status(200).json({ ok: true, message: 'Api is working...' }),
 	);
 
+	app.all('*', (_, res: express.Response) => {
+		res.status(200).json({ ok: true, message: 'Go to /api/user to use user routes' });
+	});
+
 	app.listen(PORT, () => {
 		Utils.isProduction() && console.log('Running in production mode');
 		console.log(`Listening on port ${PORT}`);
